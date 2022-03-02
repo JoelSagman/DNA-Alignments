@@ -1,0 +1,99 @@
+---
+title: "DNA Alignment"
+author: Joel Sagman 
+Date: March 2, 2020
+output: html_document
+---
+## [GitHub: JoelSagman/DNA-Alignments](https://github.com/JoelSagman/DNA-Alignments)
+
+```{r}
+library(BiocManager)
+library(rentrez)
+library(genbankr)
+library(annotate)
+library(ape)
+
+install("sangerseqR")
+```
+
+# Importing FASTA file containing sequence
+```{r}
+Seq<- c(Seq)
+```
+
+
+```{r}
+IsoSeqBLAST<-blastSequences(paste(Seq),as = 'data.frame',
+                           hitListSize = 50, timeout = 600)
+```
+
+
+
+```{r}
+IsoHitsDF<-data.frame(ID=IsoSeqBLAST$Hit_accession, Seq=IsoSeqBLAST$Hsp_hseq,
+                     stringsAsFactors = FALSE)
+```
+
+```{r}
+IsoSeqBLAST$Hit_len 
+```
+### The lengths of the sequences appear to be about 29Kb, which is 
+
+```{r}
+IsoHitSeqs<-read.GenBank(IsoSeqBLAST$Hit_accession[1:5])
+attr(IsoHitSeqs, "species")
+str(IsoHitSeqs)
+```
+
+```{r}
+library(muscle)
+library(dplyr)
+IsoSeqDNAString<- IsoHitsDF$Seq %>%
+  as.character %>%
+  lapply(.,paste0,collapse="") %>%
+  unlist %>%
+  DNAStringSet
+```
+
+```{r}
+names(IsoSeqDNAString)<-paste(1:nrow(IsoHitsDF), IsoHitsDF$ID,sep = "_")
+```
+
+```{r}
+(IsoAlign<-muscle::muscle(stringset=IsoSeqDNAString, quiet = F))
+```
+
+```{r}
+detail(IsoAlign)
+```
+
+
+
+```{r}
+IsoLen<-as.numeric(lapply(IsoSeqDNAString,length))
+library(ggplot2)
+qplot(IsoLen, binwidth = 20) + theme_bw()
+
+
+```
+```{r}
+BBSubAlignBin <- as.DNAbin(IsoAlign)
+IsoDM<-dist.dna(BBSubAlignBin, model="K80")
+class(IsoDM)
+length(IsoDM)
+```
+```{r}
+IsoDMmat<-as.matrix(IsoDM)
+dim(IsoDMmat)
+```
+
+```{r}
+library(reshape2)
+IsoDat<-melt(IsoDMmat)
+dim(IsoDat)
+```
+```{r}
+ggplot(data = IsoDat, aes(x=Var1, y=Var2, fill=value)) + 
+  geom_tile()
+```
+
