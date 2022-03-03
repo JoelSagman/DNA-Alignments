@@ -1,53 +1,76 @@
 ---
 title: "DNA Alignment"
-author: Joel Sagman 
 Date: March 2, 2020
 output: html_document
 ---
 ## [GitHub: JoelSagman/DNA-Alignments](https://github.com/JoelSagman/DNA-Alignments)
 
-```{r}
+
+### Load the necessary packages 
+```{r warning = FALSE} 
 library(BiocManager)
 library(rentrez)
 library(genbankr)
 library(annotate)
 library(ape)
-
-install("sangerseqR")
+library(sangerseqR)
+library(muscle)
+library(dplyr)
+library(ggplot2)
 ```
 
-# Importing FASTA file containing sequence
+### Isolating the sequences from the input
 ```{r}
-Seq<- c(Seq)
+IsoSeq<- c("> Human isolate, unknown sequence
+ATGTCTGATAATGGACCCCAAAATCAGCGAAATGCACCCCGCATTACGTTTGGTGGACCCTCAGATTCAA
+CTGGCAGTAACCAGAATGGAGAACGCAGTGGGGCGCGATCAAAACAACGTCGGCCCCAAGGTTTACCCAA
+TAATACTGCGTCTTGGTTCACCGCTCTCACTCAACATGGCAAGGAAGACCTTAAATTCCCTCGAGGACAA
+GGCGTTCCAATTAACACCAATAGCAGTCCAGATGACCAAATTGGCTACTACCGAAGAGCTACCAGACGAA
+TTCGTGGTGGTGACGGTAAAATGAAAGATCTCAGTCCAAGATGGTATTTCTACTACCTAGGAACTGGGCC
+AGAAGCTGGACTTCCCTATGGTGCTAACAAAGACGGCATCATATGGGTTGCAACTGAGGGAGCCTTGAAT
+ACACCAAAAGATCACATTGGCACCCGCAATCCTGCTAACAATGCTGCAATCGTGCTACAACTTCCTCAAG
+GAACAACATTGCCAAAAGGCTTCTACGCAGAAGGGAGCAGAGGCGGCAGTCAAGCCTCTTCTCGTTCCTC
+ATCACGTAGTCGCAACAGTTCAAGAAATTCAACTCCAGGCAGCAGTAGGGGAACTTCTCCTGCTAGAATG
+GCTGGCAATGGCGGTGATGCTGCTCTTGCTTTGCTGCTGCTTGACAGATTGAACCAGCTTGAGAGCAAAA
+TGTCTGGTAAAGGCCAACAACAACAAGGCCAAACTGTCACTAAGAAATCTGCTGCTGAGGCTTCTAAGAA
+GCCTCGGCAAAAACGTACTGCCACTAAAGCATACAATGTAACACAAGCTTTCGGCAGACGTGGTCCAGAA
+CAAACCCAAGGAAATTTTGGGGACCAGGAACTAATCAGACAAGGAACTGATTACAAACATTGGCCGCAAA
+TTGCACAATTTGCCCCCAGCGCTTCAGCGTTCTTCGGAATGTCGCGCATTGGCATGGAAGTCACACCTTC
+GGGAACGTGGTTGACCTACACAGGTGCCATCAAATTGGATGACAAAGATCCAAATTTCAAAGATCAAGTC
+ATTTTGCTGAATAAGCATATTGACGCATACAAAACATTCCCACCAACAGAGCCTAAAAAGGACAAAAAGA
+AGAAGGCTGATGAAACTCAAGCCTTACCGCAGAGACAGAAGAAACAGCAAACTGTGACTCTTCTTCCTGC
+TGCAGATTTGGATGATTTCTCCAAACAATTGCAACAATCCATGAGCAGTGCTGACTCAACTCAGGCCTAA")
+
+IsoSeq<-gsub("^>.*\\n([ATCG].*)", "\\1", IsoSeq)
 ```
 
-
-```{r}
-IsoSeqBLAST<-blastSequences(paste(Seq),as = 'data.frame',
+### Preform an NCBI BLAST search of the given sequence in genbank. This will return 50 sequences that allign with the given sequence
+```{r warning = FALSE}
+IsoSeqBLAST<-blastSequences(paste(IsoSeq),as = 'data.frame',
                            hitListSize = 50, timeout = 600)
 ```
 
+### Examine the lengths of the returned sequences. 
+```{r}
+IsoSeqBLAST$Hit_len 
+```
+#### The lengths of the sequences appear to be about 29Kb. This could mean our sequence come from a virus if these are full length genomes.
 
+### Take a small subset of the returned sequences and determine what species are present
+```{r}
+IsoHitSeqs<-read.GenBank(IsoSeqBLAST$Hit_accession[1:5])
+attr(IsoHitSeqs, "species")
+```
+### It is likely that the isolated sequence is not from a human but rather from the SARS-CoV-2 virus which causes COVID-19.
 
+### Make a vector of accession numbers to then insert into a dataframe with IDs and sequences. This allows us to simplify the data so it can be restructure in later steps.
 ```{r}
 IsoHitsDF<-data.frame(ID=IsoSeqBLAST$Hit_accession, Seq=IsoSeqBLAST$Hsp_hseq,
                      stringsAsFactors = FALSE)
 ```
 
+### Restructure the data so that it can be alligned
 ```{r}
-IsoSeqBLAST$Hit_len 
-```
-### The lengths of the sequences appear to be about 29Kb, which is 
-
-```{r}
-IsoHitSeqs<-read.GenBank(IsoSeqBLAST$Hit_accession[1:5])
-attr(IsoHitSeqs, "species")
-str(IsoHitSeqs)
-```
-
-```{r}
-library(muscle)
-library(dplyr)
 IsoSeqDNAString<- IsoHitsDF$Seq %>%
   as.character %>%
   lapply(.,paste0,collapse="") %>%
@@ -55,45 +78,20 @@ IsoSeqDNAString<- IsoHitsDF$Seq %>%
   DNAStringSet
 ```
 
+### Each sequence is given a unique name to control for hit on the same genome. This is done to ensure we are alligning to seperate sample and not the same one multiple times.
 ```{r}
 names(IsoSeqDNAString)<-paste(1:nrow(IsoHitsDF), IsoHitsDF$ID,sep = "_")
 ```
 
+### An allignment of the 50 sequeces with our isolated sequence. This allignment shows that the isolated sequence perfectly alligns with all 50 hits we got in the blast search.
 ```{r}
-(IsoAlign<-muscle::muscle(stringset=IsoSeqDNAString, quiet = F))
+(IsoAlign<-muscle::muscle(stringset=IsoSeqDNAString, quiet = T))
 ```
+#### Figure 1. Allignment of hits from BLAST to isolated sequence
 
-```{r}
-detail(IsoAlign)
-```
-
-
-
+### A quick plot of the alliged sequences. 
 ```{r}
 IsoLen<-as.numeric(lapply(IsoSeqDNAString,length))
-library(ggplot2)
-qplot(IsoLen, binwidth = 20) + theme_bw()
-
-
+qplot(IsoLen) + theme_classic()
 ```
-```{r}
-BBSubAlignBin <- as.DNAbin(IsoAlign)
-IsoDM<-dist.dna(BBSubAlignBin, model="K80")
-class(IsoDM)
-length(IsoDM)
-```
-```{r}
-IsoDMmat<-as.matrix(IsoDM)
-dim(IsoDMmat)
-```
-
-```{r}
-library(reshape2)
-IsoDat<-melt(IsoDMmat)
-dim(IsoDat)
-```
-```{r}
-ggplot(data = IsoDat, aes(x=Var1, y=Var2, fill=value)) + 
-  geom_tile()
-```
-
+### Figure 2. A bar plot showing that all 50 sequences allign perfectly with all 1260bp of the isolated sequence.
