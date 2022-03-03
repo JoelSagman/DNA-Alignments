@@ -1,7 +1,9 @@
 ---
 title: "DNA Alignment"
 Date: March 2, 2020
-output: html_document
+output:
+  html_document: default
+  pdf_document: default
 ---
 ## [GitHub: JoelSagman/DNA-Alignments](https://github.com/JoelSagman/DNA-Alignments)
 
@@ -45,7 +47,7 @@ IsoSeq<-gsub("^>.*\\n([ATCG].*)", "\\1", IsoSeq)
 ```
 
 ### Preform an NCBI BLAST search of the given sequence in genbank. This will return 50 sequences that allign with the given sequence
-```{r warning = FALSE}
+```{r}
 IsoSeqBLAST<-blastSequences(paste(IsoSeq),as = 'data.frame',
                            hitListSize = 50, timeout = 600)
 ```
@@ -94,4 +96,5 @@ names(IsoSeqDNAString)<-paste(1:nrow(IsoHitsDF), IsoHitsDF$ID,sep = "_")
 IsoLen<-as.numeric(lapply(IsoSeqDNAString,length))
 qplot(IsoLen) + theme_classic()
 ```
+
 ### Figure 2. A bar plot showing that all 50 sequences allign perfectly with all 1260bp of the isolated sequence.
